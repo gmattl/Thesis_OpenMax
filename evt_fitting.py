@@ -2,7 +2,7 @@ import libmr
 import numpy as np
 
 
-def compute_distances(activations, predictions, true_labels):
+def compute_mav_distances(activations, predictions, true_labels):
     """
 
     :param activations:
@@ -18,15 +18,17 @@ def compute_distances(activations, predictions, true_labels):
         # Find correctly predicted activations.
         i = (np.argmax(true_labels, 1) == predictions)
         i = i & (predictions == cl)
-        act = activations[-1][i, :]
+        act = activations[i, :]
         correct_activations.append(act)
 
         # Compute mean activations vector, MAV, for class.
         mean_act = np.mean(act, axis=0)
         mean_activations.append(mean_act)
 
-        # Compute distances from MAV.
+        # Compute all correctly classified images, of this class, distances to the MAV.
         euclid_dist[cl] = np.linalg.norm(mean_act-act)
+
+    return mean_activations, euclid_dist
 
 
 def weibull_tailfitting(euclid_dist, mean_activations):
@@ -46,7 +48,6 @@ def weibull_tailfitting(euclid_dist, mean_activations):
         mr = libmr.MR()
         tailtofit = sorted(mean_activations[0])[-20:]
         mr.fit_high(tailtofit, len(tailtofit))
-        weibull_model[str(cl)]['weibull_model'] += [mr]
+        weibull_model[str(cl)]['weibull_model'] = mr
 
-        print("Weibull fitting on activations done.")
     return weibull_model
