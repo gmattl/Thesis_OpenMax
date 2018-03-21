@@ -1,5 +1,7 @@
 from evt_fitting import *
 import numpy as np
+import scipy.spatial.distance as spd
+
 
 
 def compute_open_max_probability(openmax_known_score, openmax_unknown_score):
@@ -23,10 +25,10 @@ def compute_open_max_probability(openmax_known_score, openmax_unknown_score):
     prob_scores = np.array([scores / total_denominator])
     prob_unknowns = np.array([np.exp(openmax_unknown_score) / total_denominator])
 
-    openmax_scores = np.append(prob_scores.tolist(), prob_unknowns)
+    modified_scores = np.append(prob_scores.tolist(), prob_unknowns)
 
-    assert len(openmax_scores) == 11
-    return openmax_scores
+    assert len(modified_scores) == 11
+    return modified_scores
 
 
 def recalibrate_scores(weibull_model, img_layer_act, alpharank=10):
@@ -50,7 +52,7 @@ def recalibrate_scores(weibull_model, img_layer_act, alpharank=10):
     # Obtain alpha weights for highest -> lowest activations.
     alpha_weights = [((alpharank + 1) - i) / float(alpharank) for i in range(1, alpharank + 1)]
     ranked_alpha = np.zeros(num_labels)
-    for i in range(len(alpha_weights)):
+    for i in range(0, len(alpha_weights)):
         ranked_alpha[ranked_list[i]] = alpha_weights[i]     # Size [10,]
 
     # Calculate OpenMax probabilities
@@ -58,7 +60,7 @@ def recalibrate_scores(weibull_model, img_layer_act, alpharank=10):
     for categoryid in range(num_labels):  # 10 loops
         label_weibull = weibull_model[str(categoryid)]['weibull_model']  # Obtain the corresponding Weibull model.
         label_mav = weibull_model[str(categoryid)]['mean_vec']    # Obtain MAV for specific class. Size [10,]
-        img_dist = np.linalg.norm(label_mav - img_layer_act)/200.  # Varför 200?
+        img_dist = spd.euclidean(label_mav, img_layer_act)/200. + spd.cosine(label_mav, img_layer_act)
 
         weibull_score = label_weibull.w_score(img_dist)
 
