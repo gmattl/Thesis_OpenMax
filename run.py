@@ -1,53 +1,102 @@
-from model import *
-from utilities import *
+import sys
+sys.path.append('..')
+from cnn import MnistCNN
+sys.path.append('../Thesis_Utilities/')
+from utilities import load_datasets, load_confusion_matrix
+sys.path.append('../Thesis_OpenMax')
 from compute_openmax import *
 from evt_fitting import *
-
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
+import h5py
 
-# Load MNIST and, if omniglot_bool, Omniglot datasets.
-x_train, y_train, x_val, y_val, x_test, y_test = load_datasets(test_size=100, val_size=5000, omniglot_bool=False,
-                                                               name_data_set='data_mnist.h5', force=False,
-                                                               create_file=True, r_seed=None)
+# Load datasets.
+x_train, y_train, _, _, x_test, y_test = load_datasets(test_size=10000, val_size=30000, omniglot_bool=True,
+                                                               name_data_set='data_omni.h5', force=False,
+                                                               create_file=True, r_seed=1337)
+
+# Limit the data to facilitate runs on slower computers.
+x_test = x_test[7000:13000]
+y_test = y_test[7000:13000]
 
 # Build model.
 tf.reset_default_graph()
 sess = tf.Session()
-net = MnistCNN(sess)
+model = MnistCNN(sess, save_dir='../MnistCNN_save/')
 
-# Train model.
-#net.train_model(x_train, y_train, x_val, y_val, epochs=5, verbose=1)
-
-# Test model.
-predictions, _, activations = net.predict(x_test)
-
-# Evaluate accuracy.
-accuracy = np.sum(np.argmax(y_test, 1) == predictions)
-print(f'Test accuracy {accuracy/len(y_test)} %')
-
-"""
-# Print confusion matrices.
-matrix1, matrix2 = load_confusion_matrix(predictions, y_test)
-print("Full Confusion Matrix")
-print(np.array_str(matrix1, precision=4, suppress_small=True))
-print("Mnist-or-Glot Confusion Matrix")
-print(np.array_str(matrix2, precision=4, suppress_small=True))
-"""
+# Test model on training data set for OpenMax build/ Weibull fitting.
+#predictions, _, activations = model.predict(x_train)
 
 # Pre-computations.
-mean_activations, euclid_dist = compute_mav_distances(activations[-1], predictions, y_test)
-weibull_model = weibull_tailfitting(euclid_dist, mean_activations)
+#mean_activations, eucos_dist = compute_mav_distances(activations[-1], predictions, y_train)
+"""
+f = h5py.File('mav_eucos.h5', 'w')
+f.create_dataset("mavs", data=mean_activations)
+f.create_dataset("eucos", data=eucos_dist)
+f.close()
+"""
+f = h5py.File('mav_eucos.h5', 'r')
+mean_activations = f['mavs'][:]
+eucos_dist = f['eucos'][:]
+f.close()
 
-# Test new image.
-pred, _, act = net.predict([x_test[0]])
+# TODO: These are only allowed to be chosen for tuning set.
+tail = 8
+threshold = 0.43
 
-# Compute OpenMax probabilities on images.
-openmax_probab = recalibrate_scores(weibull_model, act[-1], alpharank=10)
+print('Weibull tail fitting tail length: {}'.format(tail))
+print('OpenMax probability rejection threshold: {}'.format(threshold))
+weibull_model = weibull_tailfitting(eucos_dist, mean_activations, taillength=tail)
 
-print("SoftMax prediction: {}".format(np.argmax(pred)))
-print("OpenMax prediction: {}".format(np.argmax(openmax_probab)))
-print("True label: {}".format(np.argmax(y_test[0])))
+
+# Testing
+#_, _, _, _, x_test_omni, y_test_omni = load_datasets(test_size=100, val_size=100, omniglot_bool=True,
+#                                                               name_data_set='data_omni.h5', force=False,
+#                                                               create_file=True, r_seed=None)
+
+acc = 0
+acc2 = 0
+open_probs = []
+pred_ = np.zeros(len(y_test))
+for i in range(0, len(x_test)):
+    test_image = x_test[i:i + 1]
+    test_label = y_test[i:i + 1]
+    pred, _, act = model.predict(test_image)
+
+    # Compute OpenMax probabilities on images.
+    openmax_probab = recalibrate_scores(weibull_model, act[-1], alpharank=10)
+    open_probs.append(openmax_probab)
+
+    # Compute accuracy and Omniglot-or-not accuracy
+    if np.argmax(openmax_probab) == np.argmax(test_label):
+        acc2 = acc2 + 1
+    if np.max(openmax_probab) < threshold:
+        openmax_probab[10] = 1
+    pred_[i] = (np.argmax(openmax_probab))
+    if pred_[i] == 10:
+        open_ = 1
+    else:
+        open_ = 0
+    if np.squeeze(np.nonzero(test_label[0])) == 10:
+        true = 1
+    else:
+        true = 0
+    if open_ == true:
+        acc = acc + 1
+
+print("OpenMax novelty-or-not accuracy: {}".format(acc / len(x_test)))
+print("OpenMax per-label accuracy: {}".format(acc2 / len(x_test)))
+
+conf_matrix = load_confusion_matrix(pred_, y_test)
+print(conf_matrix)
+
+xlin = np.linspace(0, len(x_test)/2, np.int(len(x_test)/2))
+plt.plot(xlin, np.max(open_probs[:np.int(len(x_test)/2)], 1), '*')
+plt.plot(xlin, np.max(open_probs[np.int(len(x_test)/2):], 1), 'o')
+plt.show()
 
 
 
