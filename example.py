@@ -1,7 +1,7 @@
 import sys
-sys.path.append('../..')
+sys.path.append('..')
 from cnn import MnistCNN
-sys.path.append('../../Thesis_Utilities/')
+sys.path.append('../Thesis_Utilities/')
 from utilities import load_datasets, load_confusion_matrix
 sys.path.append('../Thesis_OpenMax')
 from compute_openmax import *
@@ -30,7 +30,7 @@ y_test = y_test[9500:10500]
 # Build model.
 tf.reset_default_graph()
 sess = tf.Session()
-model = MnistCNN(sess, save_dir='../../MnistCNN_save/')
+model = MnistCNN(sess, save_dir='../MnistCNN_save/')
 
 # Test model on training data set for OpenMax build/ Weibull fitting.
 #predictions, _, activations = model.predict(x_train)
@@ -38,12 +38,12 @@ model = MnistCNN(sess, save_dir='../../MnistCNN_save/')
 # Pre-computations.
 #mean_activations, eucos_dist = compute_mav_distances(activations[-1], predictions, y_train)
 """
-f = h5py.File('../mav_eucos.h5', 'w')
+f = h5py.File('mav_eucos.h5', 'w')
 f.create_dataset("mavs", data=mean_activations)
 f.create_dataset("eucos", data=eucos_dist)
 f.close()
 """
-f = h5py.File('../mav_eucos.h5', 'r')
+f = h5py.File('mav_eucos.h5', 'r')
 mean_activations = f['mavs'][:]
 eucos_dist = f['eucos'][:]
 f.close()
