@@ -1,7 +1,5 @@
 # Implementation of OpenMax on Mnist and Omniglot
-This is work for the Master's thesis project "Input Verification of Deep Neural Networks".
-
-This is an implementation the OpenMax layer algorithm from A. Bendale, T. Boult “Towards Open Set Deep Networks” (http://vast.uccs.edu/~abendale/papers/0348.pdf) IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2016. The python implementation is based upon https://github.com/abhijitbendale/OSDN but uses a CNN trained on Mnist images, tuned on adversarial images and tested on Omniglot images.
+This is work for the Master's thesis project "Input Verification of Deep Neural Networks". The purpose is to use OpenMax to successfully reject Omniglot images from a CNN trained on Mnist. The algorithm parameters is tuned on adversarial images.
 
 ### Requirements
 Cython, LibMR, Numpy, Scipy, h5py, matplotlib
@@ -27,5 +25,12 @@ to receive ten weibull models; one for each class.
 Given a test image, the image is run through the CNN and the resulting penultimate activations, act[-1], are saved. The OpenMax probailities are then computed by calling
 ```
 openmax_probab = recalibrate_scores(weibull_models, act[-1], alpharank=10)
-``
+```
 where weibull_models are the weibull models for each class. The alpharank sets how many top-level classes that should be considered. As Mnist only has ten classes, it is here set to include all of them. If the OpenMax probability is highest for class eleven (open-set class) or if the highest probability is lower than a certain threshold value (chosen from adversarial images tuning set) the image should be rejected.
+
+## Acknowledgments
+This is an implementation the OpenMax layer algorithm from A. Bendale, T. Boult “Towards Open Set Deep Networks” IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2016.
+
+**References:** http://vast.uccs.edu/~abendale/papers/0348.pdf
+
+The implementation is based upon https://github.com/abhijitbendale/OSDN with the difference that is the use of a CNN trained on Mnist images, tuned on adversarial images and tested on Omniglot images.
