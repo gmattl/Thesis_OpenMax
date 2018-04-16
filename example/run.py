@@ -1,7 +1,7 @@
 import sys
-sys.path.append('..')
+sys.path.append('../..')
 from cnn import MnistCNN
-sys.path.append('../Thesis_Utilities/')
+sys.path.append('../../Thesis_Utilities/')
 from utilities import load_datasets, load_confusion_matrix
 sys.path.append('../Thesis_OpenMax')
 from compute_openmax import *
@@ -18,14 +18,19 @@ x_train, y_train, _, _, x_test, y_test = load_datasets(test_size=10000, val_size
                                                                name_data_set='data_omni.h5', force=False,
                                                                create_file=True, r_seed=1337)
 
+# PARAMETERS.
+# TODO: These are only allowed to be chosen for tuning set.
+tail = 8
+threshold = 0.43
+
 # Limit the data to facilitate runs on slower computers.
-x_test = x_test[7000:13000]
-y_test = y_test[7000:13000]
+x_test = x_test[9500:10500]
+y_test = y_test[9500:10500]
 
 # Build model.
 tf.reset_default_graph()
 sess = tf.Session()
-model = MnistCNN(sess, save_dir='../MnistCNN_save/')
+model = MnistCNN(sess, save_dir='../../MnistCNN_save/')
 
 # Test model on training data set for OpenMax build/ Weibull fitting.
 #predictions, _, activations = model.predict(x_train)
@@ -33,30 +38,21 @@ model = MnistCNN(sess, save_dir='../MnistCNN_save/')
 # Pre-computations.
 #mean_activations, eucos_dist = compute_mav_distances(activations[-1], predictions, y_train)
 """
-f = h5py.File('mav_eucos.h5', 'w')
+f = h5py.File('../mav_eucos.h5', 'w')
 f.create_dataset("mavs", data=mean_activations)
 f.create_dataset("eucos", data=eucos_dist)
 f.close()
 """
-f = h5py.File('mav_eucos.h5', 'r')
+f = h5py.File('../mav_eucos.h5', 'r')
 mean_activations = f['mavs'][:]
 eucos_dist = f['eucos'][:]
 f.close()
 
-# TODO: These are only allowed to be chosen for tuning set.
-tail = 8
-threshold = 0.43
-
+# Compute Weibull models.
 print('Weibull tail fitting tail length: {}'.format(tail))
-print('OpenMax probability rejection threshold: {}'.format(threshold))
-weibull_model = weibull_tailfitting(eucos_dist, mean_activations, taillength=tail)
+weibull_models = weibull_tailfitting(eucos_dist, mean_activations, taillength=tail)
 
-
-# Testing
-#_, _, _, _, x_test_omni, y_test_omni = load_datasets(test_size=100, val_size=100, omniglot_bool=True,
-#                                                               name_data_set='data_omni.h5', force=False,
-#                                                               create_file=True, r_seed=None)
-
+# Testing.
 acc = 0
 acc2 = 0
 open_probs = []
@@ -67,8 +63,8 @@ for i in range(0, len(x_test)):
     pred, _, act = model.predict(test_image)
 
     # Compute OpenMax probabilities on images.
-    openmax_probab = recalibrate_scores(weibull_model, act[-1], alpharank=10)
-    open_probs.append(openmax_probab)
+    openmax_probab = recalibrate_scores(weibull_models, act[-1], alpharank=10)
+    open_probs.append(list(openmax_probab))
 
     # Compute accuracy and Omniglot-or-not accuracy
     if np.argmax(openmax_probab) == np.argmax(test_label):
@@ -87,15 +83,21 @@ for i in range(0, len(x_test)):
     if open_ == true:
         acc = acc + 1
 
-print("OpenMax novelty-or-not accuracy: {}".format(acc / len(x_test)))
 print("OpenMax per-label accuracy: {}".format(acc2 / len(x_test)))
+print('OpenMax probability rejection threshold: {}'.format(threshold))
+print("OpenMax novelty-or-not accuracy: {}".format(acc / len(x_test)))
 
 conf_matrix = load_confusion_matrix(pred_, y_test)
 print(conf_matrix)
 
-xlin = np.linspace(0, len(x_test)/2, np.int(len(x_test)/2))
-plt.plot(xlin, np.max(open_probs[:np.int(len(x_test)/2)], 1), '*')
-plt.plot(xlin, np.max(open_probs[np.int(len(x_test)/2):], 1), 'o')
+xlin = np.linspace(0, len(x_test), np.int(len(x_test)))
+plt.plot(xlin[:np.int(len(xlin)/2)], np.max(open_probs[:np.int(len(x_test)/2)], 1), '*', label='Closed set')
+plt.plot(xlin[np.int(len(xlin)/2):], np.max(open_probs[np.int(len(x_test)/2):], 1), 'o', label='Open set')
+plt.plot([0, np.max(xlin)], [threshold, threshold], 'k', label='Threshold')
+plt.legend()
+plt.title('Max Probabilities of OpenMax')
+plt.xlabel('Samples')
+plt.ylabel('Probability')
 plt.show()
 
 
